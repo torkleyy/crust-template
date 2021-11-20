@@ -1,0 +1,103 @@
+version: '3.9'
+
+services:
+  couch:
+    image: couchdb
+    ports:
+    - "5984:5984"
+    environment:
+    - COUCHDB_USER=${DB_USER}
+    - COUCHDB_PASSWORD=${DB_PASS:?Please create a .env file with DB_PASS or specify the variable otherwise}
+
+  api:
+    build:
+      context: .
+      dockerfile: ./docker/api.dockerfile
+      args: {}
+    depends_on:
+    - couch
+    ports:
+    - "8000:8000"
+    environment:
+    - DB_URI
+    - DB_USER
+    - DB_PASS
+    - DB_NAME_USERS
+    - DB_NAME_BOOKS
+    profiles:
+    - prod
+
+  bin:
+    build:
+      context: ./docker
+      dockerfile: dev.dockerfile
+      args:
+        DEFAULT_UID: "${UID:-1000}"
+    depends_on:
+    - couch
+    volumes:
+    - ".docker/cargo_cache:/usr/local/cargo/registry:z"
+    - "${PWD}:/app"
+    environment:
+    - DB_URI
+    - DB_USER
+    - DB_PASS
+    - DB_NAME_USERS
+    - DB_NAME_BOOKS
+    entrypoint: [ "cargo", "run", "--all-features", "--bin" ]
+    profiles:
+    - tools
+    user: "${UID:-1000}:${GID:-1000}"
+
+  dev-api:
+    build:
+      context: ./docker
+      dockerfile: dev.dockerfile
+      args:
+        DEFAULT_UID: "${UID:-1000}"
+    container_name: crust_template_dev_api
+    depends_on:
+    - couch
+    volumes:
+    - ".docker/cargo_cache:/usr/local/cargo/registry:z"
+    - "${PWD}:/app"
+    environment:
+    - API_SERVER_URI
+    entrypoint: [ "cargo", "watch todo" ]
+    working_dir: "/app/api"
+    profiles:
+    - dev
+    user: "${UID:-1000}:${GID:-1000}"
+
+  # NOTE: this does not work well
+  # the main problem is that to run graphical apps inside docker
+  # one has to install the exact same drivers inside the container
+  # and the host, which is out of scope for this project
+  dev-tauri:
+    build:
+      context: ./docker
+      dockerfile: dev.dockerfile
+      args:
+        DEFAULT_UID: "${UID:-1000}"
+        ADDITIONAL_PKGS: "mesa-utils webkit2gtk-4.0 libgl1-mesa-dri webkit2gtk-driver libcanberra-gtk-module libcanberra-gtk3-module"
+    container_name: crust_template_dev_tauri
+    depends_on:
+    - couch
+    #- dev-api
+    volumes:
+    - ".docker/cargo_cache:/usr/local/cargo/registry:z"
+    - "${PWD}:/app"
+    - /tmp/.X11-unix:/tmp/.X11-unix # needed for X passthrough
+    environment:
+    - DISPLAY # needed for X passthrough
+    - API_SERVER_URI
+    - GDK_SYNCHRONIZE=1
+    entrypoint: ["/bin/sh", "-c"]
+    command: [ "yarn && yarn tauri dev" ]
+    working_dir: "/app/frontend"
+    privileged: true
+    devices:
+    - /dev/dri
+    profiles:
+    - dev
+    user: "${UID:-1000}:${GID:-1000}"

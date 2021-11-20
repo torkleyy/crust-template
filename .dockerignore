@@ -1,0 +1,8 @@
+.cargo
+.docker
+.git
+target
+frontend/openapi
+frontend/public/build
+models/schema
+frontend/node_modules
