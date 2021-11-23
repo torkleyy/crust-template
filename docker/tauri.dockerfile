@@ -9,10 +9,11 @@ RUN node --version && \
     npm --version && \
     # install yarn
     npm install --global yarn && \
-    yarn --version
+    yarn --version && \
+    cargo install tauri-cli --version ^1.0.0-beta
 
 WORKDIR /src
 COPY . .
 WORKDIR /src/frontend
 RUN yarn
-RUN yarn tauri build
+RUN cargo tauri build
